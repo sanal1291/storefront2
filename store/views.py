@@ -7,17 +7,26 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIView
-from rest_framework.viewsets import ModelViewSet
+from rest_framework.viewsets import ModelViewSet, GenericViewSet
+from rest_framework.mixins import CreateModelMixin, RetrieveModelMixin, DestroyModelMixin
 # Readonlymodelviewset - for read operations
 
 from django_filters.rest_framework import DjangoFilterBackend
 
 from store.filters import ProductFilterSet
-from store.models import Collection, OrderItem, Product, Review
+from store.models import Cart, Collection, OrderItem, Product, Review
 from store.pagination import DefaultPagination
-from store.serializers import CollectionSerializer, ProductSerializer, ReviewSerializer
+from store.serializers import CartSerializer, CollectionSerializer, ProductSerializer, ReviewSerializer
 
 # class viewset
+
+
+class CartViewSet(CreateModelMixin,
+                  RetrieveModelMixin,
+                  DestroyModelMixin,
+                  GenericViewSet):
+    queryset = Cart.objects.prefetch_related('items__product').all()
+    serializer_class = CartSerializer
 
 
 class ProductViewSet(ModelViewSet):
