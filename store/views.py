@@ -1,24 +1,51 @@
 from django.db.models import Count
 from django.shortcuts import get_object_or_404
-\
+from rest_framework import permissions
 from rest_framework.filters import SearchFilter, OrderingFilter
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, action, permission_classes
+from rest_framework.permissions import AllowAny, DjangoModelPermissions, IsAdminUser, IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.viewsets import ModelViewSet, GenericViewSet
-from rest_framework.mixins import CreateModelMixin, RetrieveModelMixin, DestroyModelMixin
+from rest_framework.mixins import CreateModelMixin, RetrieveModelMixin, DestroyModelMixin, UpdateModelMixin
 # Readonlymodelviewset - for read operations
 
 from django_filters.rest_framework import DjangoFilterBackend
 
 from store.filters import ProductFilterSet
-from store.models import Cart, CartItem, Collection, OrderItem, Product, Review
+from store.models import Cart, CartItem, Collection, Customer, OrderItem, Product, Review
 from store.pagination import DefaultPagination
-from store.serializers import AddCartItemSerializer, CartItemSerializer, CartSerializer, CollectionSerializer, ProductSerializer, ReviewSerializer, UpdateCartItemSerializer
+from store.permissions import FullDjangoModelPermissions, ViewCustomerHistoryPermission, isAdminOrReadOnly
+from store.serializers import AddCartItemSerializer, CartItemSerializer, CartSerializer, CollectionSerializer, CustomerSerializer, ProductSerializer, ReviewSerializer, UpdateCartItemSerializer
 
 # class viewset
+
+
+class CustomerViewSet(ModelViewSet):
+    queryset = Customer.objects.all()
+    serializer_class = CustomerSerializer
+    permission_classes = [IsAdminUser]
+    # permission_classes = [DjangoModelPermissions]
+    # permission_classes = [FullDjangoModelPermissions]
+
+    @action(detail=True, permission_classes=[ViewCustomerHistoryPermission])
+    def history(self, request, pk):
+        return Response('hi')
+
+    @action(detail=False, methods=['GET', 'PUT'], permission_classes=[IsAuthenticated])
+    def me(self, request):
+        (customer, created) = Customer.objects.get_or_create(
+            user_id=request.user.id)
+        if request.method == 'GET':
+            serializer = CustomerSerializer(customer)
+            return Response(serializer.data)
+        elif request.method == 'PUT':
+            serializer = CustomerSerializer(customer, data=request.data)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data)
 
 
 class CartViewSet(CreateModelMixin,
@@ -55,6 +82,7 @@ class ProductViewSet(ModelViewSet):
     pagination_class = DefaultPagination  # can be defined for all in settings
     search_fields = ['title', 'description']
     ordering_fields = ['unit_price', 'last_update']
+    permission_classes = [isAdminOrReadOnly]
     # filterset_fields = ['collection_id', 'unit_price']
     # not needed for custom filter
 
@@ -111,6 +139,7 @@ class CollectionViewSet(ModelViewSet):
     queryset = Collection.objects.annotate(
         products_count=Count('products')).all()
     serializer_class = CollectionSerializer
+    permission_classes = [isAdminOrReadOnly]
 
     def destroy(self, request, pk):
         collection = self.get_object()
